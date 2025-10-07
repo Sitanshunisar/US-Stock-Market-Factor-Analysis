@@ -1,0 +1,139 @@
+/* static/style.css */
+
+/* --- General & Typography --- */
+body {
+    font-family: 'Poppins', sans-serif;
+    background-color: #f4f7f6; /* Off-white for less eye strain */
+    color: #333;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+    margin: 0;
+    padding: 25px 0;
+}
+.container {
+    width: 90%;
+    max-width: 900px;
+    background-color: #ffffff;
+    border-radius: 12px;
+    padding: 35px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e0e0e0;
+}
+header {
+    text-align: center;
+    margin-bottom: 25px;
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 25px;
+}
+header h1 {
+    color: #0056b3;
+    margin: 0;
+    font-weight: 600;
+}
+.card {
+    background-color: #ffffff;
+    border-radius: 8px;
+    padding: 25px;
+    margin-bottom: 25px;
+    border: 1px solid #dee2e6;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+/* --- Tabs --- */
+.tabs {
+    display: flex;
+    border-bottom: 1px solid #dee2e6;
+    margin-bottom: 25px;
+}
+.tab-button {
+    background: none;
+    border: none;
+    color: #555;
+    padding: 15px 20px;
+    cursor: pointer;
+    font-size: 1.05em;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 500;
+    transition: all 0.2s ease-in-out;
+}
+.tab-button.active {
+    color: #007bff;
+    border-bottom: 3px solid #007bff;
+}
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* --- Forms & Inputs --- */
+.input-card form {
+    display: flex; flex-wrap: wrap; gap: 20px; align-items: center;
+}
+.input-card label { margin-right: 5px; color: #555; font-weight: 500; }
+input[type="date"], input[type="number"] {
+    font-family: 'Poppins', sans-serif;
+    background-color: #f8f9fa;
+    color: #333;
+    border: 1px solid #ced4da;
+    border-radius: 5px;
+    padding: 10px;
+    font-size: 1em;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+input[type="date"]:focus, input[type="number"]:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+button {
+    font-family: 'Poppins', sans-serif;
+    background-color: #007bff;
+    color: #ffffff;
+    border: none;
+    border-radius: 5px;
+    padding: 10px 20px;
+    font-size: 1em;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.2s;
+}
+button:hover {
+    background-color: #0056b3;
+    transform: translateY(-2px);
+}
+
+/* --- Results Display --- */
+.prediction-card h2, .factors-card h2 { margin-top: 0; color: #333; font-weight: 600; }
+.regime {
+    font-size: 2.5em; font-weight: 700; text-align: center;
+    padding: 20px; border-radius: 8px; margin-top: 15px;
+}
+.regime.bull { background-color: #e9f5ec; color: #1d7434; border: 1px solid #a3d9b1; }
+.regime.bear { background-color: #fdecea; color: #b72d2e; border: 1px solid #f5b9bc; }
+.regime.sideways { background-color: #fff8e1; color: #997404; border: 1px solid #ffecb3; }
+.factors-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;
+}
+.factor {
+    background-color: #f8f9fa; padding: 15px; border-radius: 5px;
+    border: 1px solid #e9ecef; text-align: center;
+}
+.factor-name { display: block; font-size: 0.9em; color: #555; font-weight: 500; }
+.factor-score { display: block; font-size: 1.7em; font-weight: 600; margin-top: 5px; color: #0056b3; }
+
+/* --- Other Elements --- */
+.error-card { background-color: #f8d7da; border-left-color: #d9534f; color: #721c24; }
+.chart-card { position: relative; }
+.loader {
+    border: 5px solid #e9ecef; border-top: 5px solid #007bff;
+    border-radius: 50%; width: 50px; height: 50px;
+    animation: spin 1s linear infinite; position: absolute;
+    top: 50%; left: 50%; margin-top: -25px; margin-left: -25px;
+}
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+.scenario-inputs {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px; width: 100%; margin-bottom: 20px;
+}
+.input-group { display: flex; flex-direction: column; }
+#scenario-form button { width: 100%; padding: 12px; }
