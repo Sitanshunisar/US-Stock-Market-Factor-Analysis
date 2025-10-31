@@ -12,16 +12,6 @@ A sophisticated web dashboard that uses a dual PCA-LDA machine learning pipeline
 
 ---
 
-### ► Live Demo / Screenshot
-
-<div align="center">
-  <img src="https://i.imgur.com/your-screenshot-url.png" alt="Dashboard Screenshot" width="800"/>
-  <br/>
-  <em>A preview of the modern, white-themed user interface.</em>
-</div>
-
----
-
 ## About The Project
 
 In finance, understanding the current state or "regime" of the market (e.g., Bull, Bear) is critical for strategic decision-making. This project moves beyond simple price prediction to analyze the underlying drivers of the market. It uses daily Treasury yield curve data and stock market indices to build a robust classification model, which is then served through an interactive Flask web application.
