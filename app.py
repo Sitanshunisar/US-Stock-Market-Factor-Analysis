@@ -23,19 +23,15 @@ except FileNotFoundError:
 def prepare_features():
     """
     Loads raw data and pre-computes all features for the entire dataset.
-    This uses the CORRECTED column names to match your CSV files.
+    This now matches the cleaning steps from modeling_script.py
     """
-    # --- UPDATED: Using correct column names for your files ---
     treasury_df = pd.read_csv('treasury_rates.csv', parse_dates=['DATE']).set_index('DATE')
     indices_df = pd.read_csv('world_indices.csv', parse_dates=['date']).set_index('date')
     
-    # Correctly filter for S&P 500 and use lowercase 'close'
     sp500_df = indices_df[indices_df['ticker'] == '^GSPC'].copy()
 
-    # UPDATED: Correct yield column names
     yield_cols = ['5 YR', '10 YR', '20 YR', '30 YR']
     
-    # --- ADDED: Data cleaning to match the modeling script ---
     for col in yield_cols:
         treasury_df[col] = pd.to_numeric(treasury_df[col], errors='coerce')
     treasury_df[yield_cols] = treasury_df[yield_cols].ffill().bfill()
@@ -44,6 +40,8 @@ def prepare_features():
 
     # Market features
     sp500_df['log_return'] = np.log(sp500_df['close'] / sp500_df['close'].shift(1))
+    # [FIX] Add replacement for inf/-inf values to match modeling_script.py
+    sp500_df['log_return'] = sp500_df['log_return'].replace([np.inf, -np.inf], np.nan)
     sp500_df['volatility_60d'] = sp500_df['log_return'].rolling(window=60).std()
     market_features = sp500_df[['log_return', 'volatility_60d', 'close']]
     
@@ -53,32 +51,48 @@ def prepare_features():
 
 # Global variable to hold all pre-computed data
 ALL_FEATURES_DF = prepare_features()
+# Define yield columns for lookup
+YIELD_COLS = ['5 YR', '10 YR', '20 YR', '30 YR']
+
 
 def get_prediction_for_date(target_date_str):
     try:
         features_for_date = ALL_FEATURES_DF.loc[target_date_str:target_date_str]
         if features_for_date.empty: return {"error": "Data not available for this date."}
         
-        # UPDATED: Use lowercase 'close'
+        # This is a 1-row DataFrame with 6 features
         feature_values = features_for_date.drop(columns=['close'])
         
-        # --- Make Prediction ---
+        # --- [FIX] Corrected Prediction Pipeline ---
+        # 1. Scale all 6 features
         features_scaled = scaler.transform(feature_values)
-        # UPDATED: Correct yield column names
-        yield_indices = [feature_values.columns.get_loc(c) for c in ['5 YR', '10 YR', '20 YR', '30 YR']]
-        pca_scores = pca.transform(features_scaled[:, yield_indices])[0]
-        lda_features = lda.transform(features_scaled)
+        
+        # 2. Get PCA scores for the first 4 (yield) columns
+        yield_indices = [feature_values.columns.get_loc(c) for c in YIELD_COLS]
+        pca_scores = pca.transform(features_scaled[:, yield_indices])
+        
+        # 3. Create the 5D hybrid array: [PC1, PC2, PC3, log_return, volatility_60d]
+        # (Grabs the last 2 columns: log_return and volatility_60d)
+        full_features = np.concatenate([pca_scores, features_scaled[:, 4:]], axis=1)
+        
+        # 4. Transform with LDA (which expects the 5D array)
+        lda_features = lda.transform(full_features)
+        
+        # 5. Predict
         prediction = classifier.predict(lda_features)[0]
+        # --- [END FIX] ---
         
         return {
             'predicted_regime': prediction.upper(),
             'factor_scores': {
-                'Level (PC1)': f"{pca_scores[0]:.2f}", 'Slope (PC2)': f"{pca_scores[1]:.2f}", 'Curvature (PC3)': f"{pca_scores[2]:.2f}",
+                'Level (PC1)': f"{pca_scores[0, 0]:.2f}", 
+                'Slope (PC2)': f"{pca_scores[0, 1]:.2f}", 
+                'Curvature (PC3)': f"{pca_scores[0, 2]:.2f}",
             },
             'regime_class': prediction.lower()
         }
     except Exception as e:
-        print(f"Error during prediction: {e}") # Added for better debugging
+        print(f"Error during prediction for {target_date_str}: {e}")
         return {"error": f"Could not generate a prediction for {target_date_str}."}
 
 
@@ -99,13 +113,30 @@ def analyze_range():
     date_range_df = ALL_FEATURES_DF.loc[start_date:end_date]
     
     results = []
+    # Get column indices once
+    yield_indices = [ALL_FEATURES_DF.columns.get_loc(c) for c in YIELD_COLS]
+
     for date, row in date_range_df.iterrows():
-        # UPDATED: Use lowercase 'close'
+        # feature_values is a 1D row of 6 features (yields, log_ret, vol)
         feature_values = row.drop(['close']).values.reshape(1, -1)
+        
+        # --- [FIX] Corrected Prediction Pipeline (same as above) ---
+        # 1. Scale all 6 features
         features_scaled = scaler.transform(feature_values)
-        lda_features = lda.transform(features_scaled)
+        
+        # 2. Get PCA scores
+        pca_scores = pca.transform(features_scaled[:, yield_indices])
+        
+        # 3. Create 5D hybrid array
+        full_features = np.concatenate([pca_scores, features_scaled[:, 4:]], axis=1)
+        
+        # 4. Transform with LDA
+        lda_features = lda.transform(full_features)
+        
+        # 5. Predict
         prediction = classifier.predict(lda_features)[0]
-        # UPDATED: Use lowercase 'close'
+        # --- [END FIX] ---
+
         results.append({'date': date.strftime('%Y-%m-%d'), 'price': row['close'], 'regime': prediction})
         
     return jsonify(results)
@@ -114,15 +145,28 @@ def analyze_range():
 def simulate_scenario():
     data = request.get_json()
     try:
-        # The order MUST match the training columns
+        # The order MUST match the training columns: 4 yields, log_return, volatility
         feature_values = np.array([[
             float(data['yr5_change']), float(data['yr10_change']), float(data['yr20_change']),
             float(data['yr30_change']), float(data['log_return']), float(data['volatility'])
         ]])
 
+        # --- [FIX] Corrected Prediction Pipeline (same as above) ---
+        # 1. Scale all 6 features
         features_scaled = scaler.transform(feature_values)
-        lda_features = lda.transform(features_scaled)
+        
+        # 2. Get PCA scores (on first 4 columns)
+        pca_scores = pca.transform(features_scaled[:, 0:4])
+        
+        # 3. Create 5D hybrid array
+        full_features = np.concatenate([pca_scores, features_scaled[:, 4:]], axis=1)
+        
+        # 4. Transform with LDA
+        lda_features = lda.transform(full_features)
+        
+        # 5. Predict
         prediction = classifier.predict(lda_features)[0]
+        # --- [END FIX] ---
 
         return jsonify({'predicted_regime': prediction.upper(), 'regime_class': prediction.lower()})
     except (ValueError, KeyError):
