@@ -8,13 +8,21 @@
 
 </div>
 
-A sophisticated web dashboard that uses a dual PCA-LDA machine learning pipeline to analyze macroeconomic data, classify the stock market's regime, and simulate hypothetical economic scenarios.
+A sophisticated web dashboard that uses a dual **PCA-LDA** machine learning pipeline to analyze macroeconomic data, classify the stock market's regime, and simulate hypothetical economic scenarios.
+
+---
+
+## 🚀 Live Demo
+
+A live version of this application is deployed on AWS Elastic Beanstalk:
+
+**[http://global-market-env.eba-iusm6grm.ap-south-1.elasticbeanstalk.com/](http://global-market-env.eba-iusm6grm.ap-south-1.elasticbeanstalk.com/)**
 
 ---
 
 ## About The Project
 
-In finance, understanding the current state or "regime" of the market (e.g., Bull, Bear) is critical for strategic decision-making. This project moves beyond simple price prediction to analyze the underlying drivers of the market. It uses daily Treasury yield curve data and stock market indices to build a robust classification model, which is then served through an interactive Flask web application.
+In finance, understanding the current state or "regime" of the market (e.g., **Bull**, **Bear**, **Sideways**) is critical for strategic decision-making. This project moves beyond simple price prediction to analyze the underlying drivers of the market. It uses daily Treasury yield curve data and S&P 500 index data to build a robust classification model, which is then served through an interactive Flask web application.
 
 The dashboard allows users not only to see the model's current prediction but also to explore historical events and test their own economic hypotheses, making it a powerful tool for financial analysis and research.
 
@@ -32,10 +40,8 @@ This dashboard provides three distinct modes of analysis:
 
 ## 🛠️ Technical Stack
 
-This project is built with a modern, robust set of tools:
-
 * **Backend**: Flask, Gunicorn
-* **Machine Learning**: Scikit-learn (PCA, LDA, KNeighborsClassifier)
+* **Machine Learning**: Scikit-learn (KMeans, PCA, LDA, KNeighborsClassifier, GridSearchCV)
 * **Data Science**: Pandas, NumPy
 * **Frontend**: HTML, CSS, JavaScript (Fetch API)
 * **Charting**: Chart.js
@@ -44,69 +50,29 @@ This project is built with a modern, robust set of tools:
 
 ## 🔬 How It Works: The Machine Learning Pipeline
 
-The project's core is a sophisticated workflow that transforms raw data into actionable insights.
+The project's core is a sophisticated workflow that transforms raw, noisy financial data into a single, actionable prediction.
 
 <div align="center">
   
-**Raw Data → Feature Engineering → PCA → LDA → KNN → Prediction**
+**Raw Data → K-Means Labeling → Feature Engineering → PCA (on Yields) → LDA (on Hybrid Features) → KNN → Prediction**
   
 </div>
 
-1.  **Feature Engineering**: The target variable (market regime) is created by labeling historical data into `Bull`, `Bear`, or `Sideways` categories based on the forward-looking returns and rolling volatility of the S&P 500.
+1.  **Regime Labeling (K-Means)**: The target variable (market regime) is created first. The script runs `KMeans(n_clusters=3)` on **60-day forward returns** and **60-day volatility** of the S&P 500. The resulting clusters are labeled `Bull`, `Bear`, or `Sideways` based on their average return.
 
-2.  **Unsupervised Factor Extraction (PCA)**: Principal Component Analysis is applied to daily Treasury yield changes. It distills the correlated interest rate data into three primary, uncorrelated macroeconomic factors that explain the shape of the yield curve.
+2.  **Feature Engineering**: The 6 predictor features (the $X$ variables) are engineered from the *current* day's data:
+    * `Daily Change in 5, 10, 20, 30-Year Treasury Yields`
+    * `S&P 500 Daily Log Return`
+    * `S&P 500 60-Day Volatility`
 
-3.  **Supervised Class Separation (LDA)**: Linear Discriminant Analysis takes all available features and finds the optimal mathematical combination that maximizes the separation between the labeled market regimes, creating an ideal, low-dimensional space for classification.
+3.  **Unsupervised Factor Extraction (PCA)**: `PCA(n_components=3)` is applied *only* to the 4 correlated Treasury features. This distills them into 3 uncorrelated "Principal Components" (Level, Slope, and Curvature) that describe the yield curve's behavior.
 
-4.  **Final Prediction (KNN)**: A K-Nearest Neighbors classifier is trained on the LDA-transformed features to make the final, robust prediction for any given set of market data.
+4.  **Hybrid Feature Creation & Separation (LDA)**:
+    * A **5-dimensional** hybrid feature set is created by concatenating the **3 PCA components** (from yields) and the **2 market features** (log return, volatility).
+    * `LDA(n_components=2)` is then fit on this 5D data. It finds the optimal 2D projection that **maximizes the separation** between the 'Bull', 'Bear', and 'Sideways' classes.
+
+5.  **Final Prediction (KNN)**: A `KNeighborsClassifier` is trained on the final, 2D LDA-transformed data. `GridSearchCV` is used to find the optimal hyperparameters (e.g., `n_neighbors`, `metric`) for the highest possible accuracy.
 
 ---
 
-## 🚀 Getting Started
-
-To get a local copy up and running, follow these simple steps.
-
-### Prerequisites
-
-* Python 3.10+
-* Git
-
-### Installation & Setup
-
-1.  **Clone the repository:**
-    ```bash
-    git clone [https://github.com/your-username/global-market-analyzer.git](https://github.com/your-username/global-market-analyzer.git)
-    cd global-market-analyzer
-    ```
-
-2.  **Create and activate a virtual environment:**
-    ```bash
-    # For macOS/Linux
-    python3 -m venv venv
-    source venv/bin/activate
-    
-    # For Windows
-    python -m venv venv
-    venv\Scripts\activate
-    ```
-
-3.  **Install the required packages:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-4.  **Download the data:**
-    * Place your `treasury_rates.csv` and `world_indices.csv` files in the root project directory.
-
-5.  **Train the Models (One-Time Step):**
-    * Run the modeling script to generate the `.pkl` artifacts in the `models/` folder.
-    ```bash
-    python modeling_script.py
-    ```
-
-6.  **Run the Flask Application:**
-    ```bash
-    python app.py
-    ```
-    * Open your browser and navigate to `http://127.0.0.1:5000`.
-
+## 📁 Project Structure
