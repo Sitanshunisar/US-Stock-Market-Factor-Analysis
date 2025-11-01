@@ -73,6 +73,3 @@ The project's core is a sophisticated workflow that transforms raw, noisy financ
 
 5.  **Final Prediction (KNN)**: A `KNeighborsClassifier` is trained on the final, 2D LDA-transformed data. `GridSearchCV` is used to find the optimal hyperparameters (e.g., `n_neighbors`, `metric`) for the highest possible accuracy.
 
----
-
-## 📁 Project Structure
