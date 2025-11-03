@@ -1,5 +1,28 @@
 document.addEventListener('DOMContentLoaded', function() {
     
+    // --- [NEW] Tab Navigation Logic ---
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            // Get the target tab ID from the button's 'data-tab' attribute
+            const targetTab = button.getAttribute('data-tab');
+
+            // 1. Deactivate all buttons and content
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            tabContents.forEach(content => content.classList.remove('active'));
+
+            // 2. Activate the clicked button
+            button.classList.add('active');
+            
+            // 3. Activate the corresponding content
+            document.getElementById(targetTab).classList.add('active');
+        });
+    });
+    // --- [END NEW] Tab Navigation Logic ---
+
+
     // --- Historical Chart Logic ---
     let regimeChart = null; // Global chart variable
     
@@ -126,7 +149,6 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('simulator-form').addEventListener('submit', function(e) {
         e.preventDefault();
         
-        // Grab the 8 feature values
         const data = {
             log_return: document.getElementById('log_return').value,
             volatility: document.getElementById('volatility').value,
