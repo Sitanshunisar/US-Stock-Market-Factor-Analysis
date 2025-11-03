@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     
-    // --- Historical Chart Logic (No Change) ---
+    // --- Historical Chart Logic ---
     let regimeChart = null; // Global chart variable
     
     document.getElementById('run-historical').addEventListener('click', function() {
@@ -126,12 +126,12 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('simulator-form').addEventListener('submit', function(e) {
         e.preventDefault();
         
-        // [MODIFIED] Grab the 8 new feature values
+        // Grab the 8 feature values
         const data = {
             log_return: document.getElementById('log_return').value,
             volatility: document.getElementById('volatility').value,
-            momentum: document.getElementById('momentum').value, // <-- NEW
-            slope: document.getElementById('slope').value,       // <-- NEW
+            momentum: document.getElementById('momentum').value,
+            slope: document.getElementById('slope').value,
             yr5_change: document.getElementById('yr5_change').value,
             yr10_change: document.getElementById('yr10_change').value,
             yr20_change: document.getElementById('yr20_change').value,
