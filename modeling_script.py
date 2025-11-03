@@ -1,9 +1,9 @@
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, RobustScaler
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA 
-from sklearn.cluster import KMeans
+from sklearn.mixture import GaussianMixture # Correctly imported
 from sklearn.model_selection import GridSearchCV
 import pickle
 import os
@@ -12,18 +12,17 @@ import warnings
 # Suppress warnings for cleaner output
 warnings.filterwarnings('ignore')
 
-# --- Data loading and feature engineering ---
+# --- Data loading and feature engineering (Same as before) ---
 treasury_df = pd.read_csv('treasury_rates.csv')
 indices_df = pd.read_csv('world_indices.csv')
 YIELD_COLS = ['5 YR', '10 YR', '20 YR', '30 YR']
 SP500_TICKER = '^GSPC'
-# [MODIFIED] We will add two new features to this list
 features = YIELD_COLS + ['log_return', 'volatility_60d', 'momentum_20d', 'slope_10_5']
 
 for col in YIELD_COLS:
     treasury_df[col] = pd.to_numeric(treasury_df[col], errors='coerce')
 treasury_df[YIELD_COLS] = treasury_df[YIELD_COLS].ffill().bfill()
-treasury_df['DATE'] = pd.to_datetime( treasury_df['DATE'], dayfirst=True) # Use dayfirst parser
+treasury_df['DATE'] = pd.to_datetime( treasury_df['DATE'], dayfirst=True)
 treasury_df = treasury_df.sort_values('DATE').set_index('DATE')
 treasury_features = treasury_df[YIELD_COLS].diff().dropna()
 
@@ -34,35 +33,49 @@ sp500_df['log_return'] = np.log(sp500_df['close'] / sp500_df['close'].shift(1))
 sp500_df['log_return'] = sp500_df['log_return'].replace([np.inf, -np.inf], np.nan)
 sp500_df['volatility_60d'] = sp500_df['log_return'].rolling(window=60).std()
 
-# --- [NEW] Add a 'Momentum' feature ---
 sp500_df['momentum_20d'] = sp500_df['log_return'].rolling(window=20).sum()
 market_features = sp500_df[['log_return', 'volatility_60d', 'momentum_20d']].dropna()
 
-# --- [NEW] Add 'Yield Curve Slope' feature ---
-# We must use the original (non-diff'd) treasury data for this.
 treasury_df['slope_10_5'] = treasury_df['10 YR'] - treasury_df['5 YR']
 slope_feature = treasury_df[['slope_10_5']].dropna()
 
-# --- [MODIFIED] Join all features together ---
 merged_df = treasury_features.join(market_features, how='inner').dropna()
-merged_df = merged_df.join(slope_feature, how='inner').dropna() # Join the new slope feature
+merged_df = merged_df.join(slope_feature, how='inner').dropna() 
 
 merged_df['forward_return_60d'] = merged_df['log_return'].shift(-60).rolling(window=60).sum()
 merged_df = merged_df.dropna(subset=features + ['forward_return_60d'])
 
-# --- Clustering (UNSCALED) ---
-print("Running K-Means clustering on UNCALED data...")
+# --- [MODIFIED] Clustering-based regime labeling (GMM) ---
+print("Running Gaussian Mixture Model (GMM) clustering...")
 cluster_features = merged_df[['forward_return_60d', 'volatility_60d']].dropna()
-kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
-clusters = kmeans.fit_predict(cluster_features) 
-centers = pd.DataFrame(kmeans.cluster_centers_, columns=['Mean_Return', 'Mean_Volatility'])
-sorted_idxs = centers['Mean_Return'].argsort()
-regime_mapping = {int(sorted_idxs[0]): 'Bear', int(sorted_idxs[1]): 'Sideways', int(sorted_idxs[2]): 'Bull'}
+
+cluster_scaler = RobustScaler()
+cluster_features_scaled = cluster_scaler.fit_transform(cluster_features)
+
+# [RENAMED] Initialize and fit GMM
+gmm = GaussianMixture(n_components=3, random_state=42, n_init=10)
+clusters = gmm.fit_predict(cluster_features_scaled) 
+
+scaled_centers = gmm.means_ 
+unscaled_centers = cluster_scaler.inverse_transform(scaled_centers)
+centers = pd.DataFrame(unscaled_centers, columns=['Mean_Return', 'Mean_Volatility'])
+
+# Smart Financial Labeling
+bear_cluster_index = centers['Mean_Return'].idxmin()
+remaining_clusters = centers.drop(bear_cluster_index)
+bull_cluster_index = remaining_clusters['Mean_Volatility'].idxmin()
+sideways_cluster_index = remaining_clusters.drop(bull_cluster_index).index[0]
+
+regime_mapping = {
+    bear_cluster_index: 'Bear',
+    bull_cluster_index: 'Bull',
+    sideways_cluster_index: 'Sideways'
+}
+
 merged_df['Regime'] = pd.Series(clusters, index=cluster_features.index).map(regime_mapping)
 centers_to_save = centers.rename(index=regime_mapping)
 
 final_df = merged_df.dropna(subset=features + ['Regime'])
-# [MODIFIED] X now has 8 features
 X = final_df[features].dropna()
 y = final_df['Regime'].loc[X.index].dropna()
 
@@ -82,14 +95,14 @@ X_test_scaled = scaler.transform(X_test)
 lda_analysis_model = LDA()
 lda_analysis_model.fit(X_train_scaled, y_train)
 
-# --- [MODIFIED] Deeper GridSearchCV ---
+# --- GridSearchCV for RandomForest optimization ---
 print("Running GridSearchCV for Random Forest...")
 param_grid = {
-    'n_estimators': [200, 300, 400],           # Try more trees
-    'max_depth': [10, 15, 20, 25],           # Try deeper trees
-    'class_weight': ['balanced'],
+    'n_estimators': [200, 300, 400],
+    'max_depth': [10, 15, 20],
+    'class_weight': ['balanced'], 
     'max_features': ['sqrt', 'log2'],
-    'min_samples_leaf': [1, 3, 5]            # Try different leaf sizes
+    'min_samples_leaf': [1, 3, 5]
 }
 rf = RandomForestClassifier(random_state=42)
 grid_search = GridSearchCV(rf, param_grid, cv=5, n_jobs=-1, verbose=2)
@@ -119,9 +132,13 @@ with open(f'{models_dir}/lda_analysis_model.pkl', 'wb') as f: pickle.dump(lda_an
 with open(f'{models_dir}/train_indices.pkl', 'wb') as f: pickle.dump(train_indices, f)
 with open(f'{models_dir}/test_indices.pkl', 'wb') as f: pickle.dump(test_indices, f)
 final_df[['Regime']].to_csv(f'{models_dir}/assigned_regimes.csv')
-with open(f'{models_dir}/kmeans_model.pkl', 'wb') as f: pickle.dump(kmeans, f)
-cluster_features.to_csv(f'{models_dir}/cluster_features_for_silhouette.csv')
-with open(f'{models_dir}/kmeans_centers.pkl', 'wb') as f: pickle.dump(centers_to_save, f)
+
+# [RENAMED] Save the GMM model
+with open(f'{models_dir}/gmm_model.pkl', 'wb') as f: pickle.dump(gmm, f)
+pd.DataFrame(cluster_features_scaled, index=cluster_features.index).to_csv(f'{models_dir}/cluster_features_for_silhouette.csv')
+
+# [RENAMED] Save the GMM centers
+with open(f'{models_dir}/gmm_centers.pkl', 'wb') as f: pickle.dump(centers_to_save, f)
 with open(f'{models_dir}/grid_search_results.pkl', 'wb') as f: pickle.dump(grid_search_results, f)
 X.to_csv(f'{models_dir}/final_X_data.csv')
 y.to_csv(f'{models_dir}/final_y_data.csv', header=False)

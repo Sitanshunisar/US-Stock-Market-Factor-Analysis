@@ -4,7 +4,7 @@ import pandas as pd
 from sklearn.metrics import accuracy_score, classification_report, silhouette_score
 
 yield_cols = ['5 YR', '10 YR', '20 YR', '30 YR']
-other_features = ['log_return', 'volatility_60d', 'momentum_20d', 'slope_10_5'] # <-- [MODIFIED]
+other_features = ['log_return', 'volatility_60d', 'momentum_20d', 'slope_10_5']
 all_features = yield_cols + other_features
 
 # --- Load models and split info ---
@@ -14,9 +14,10 @@ lda_analyzer = pickle.load(open('models/lda_analysis_model.pkl', 'rb'))
 train_indices = pickle.load(open('models/train_indices.pkl', 'rb'))
 test_indices = pickle.load(open('models/test_indices.pkl', 'rb'))
 
-kmeans_centers = pickle.load(open('models/kmeans_centers.pkl', 'rb'))
+# [RENAMED] Load GMM files
+gmm_centers = pickle.load(open('models/gmm_centers.pkl', 'rb'))
 grid_search_results = pickle.load(open('models/grid_search_results.pkl', 'rb'))
-kmeans = pickle.load(open('models/kmeans_model.pkl', 'rb'))
+gmm = pickle.load(open('models/gmm_model.pkl', 'rb')) # This is your GMM model
 cluster_features = pd.read_csv('models/cluster_features_for_silhouette.csv', index_col=0, parse_dates=True)
 
 # --- Load the exact X and y data ---
@@ -24,12 +25,15 @@ X = pd.read_csv('models/final_X_data.csv', index_col=0, parse_dates=True)
 y = pd.read_csv('models/final_y_data.csv', index_col=0, parse_dates=True, header=None).squeeze("columns")
 y.name = "Regime"
 
-# --- K-MEANS CLUSTERING ANALYSIS ---
-print("\n====== K-MEANS CLUSTER ANALYSIS ======")
+# --- [RENAMED] GMM CLUSTERING ANALYSIS ---
+print("\n====== GMM CLUSTER ANALYSIS ======")
 print("Cluster Centers (Regime Definitions, Unscaled):")
-print(kmeans_centers)
+print(gmm_centers)
 
-score = silhouette_score(cluster_features, kmeans.labels_)
+# GMM doesn't have '.labels_'. We must re-predict them.
+gmm_labels = gmm.predict(cluster_features)
+score = silhouette_score(cluster_features, gmm_labels)
+
 print(f"\nSilhouette Score: {score:.4f}")
 print("(A score closer to +1 is better. 0 means clusters overlap.)")
 
@@ -76,7 +80,6 @@ print(importance_df)
 print("\n====== LDA COEFFICIENTS TABLE (For Analysis Only) ======")
 lda_coeffs = np.round(lda_analyzer.coef_, 3)
 lda_classes = lda_analyzer.classes_
-# [MODIFIED] LDA table now has 8 feature columns
 lda_df = pd.DataFrame(lda_coeffs, columns=all_features, index=[f"{c} vs rest" for c in lda_classes])
 print(lda_df)
 
