@@ -14,25 +14,31 @@ lda = pickle.load(open('models/lda_model.pkl', 'rb'))
 classifier = pickle.load(open('models/final_classifier.pkl', 'rb'))
 train_indices = pickle.load(open('models/train_indices.pkl', 'rb'))
 test_indices = pickle.load(open('models/test_indices.pkl', 'rb'))
-# regimes = pd.read_csv('models/assigned_regimes.csv', index_col=0) # No longer needed, we load y directly
 
-# --- [DELETED] All data re-building code (lines 19-39) removed ---
+# --- [NEW] Load K-Means and GridSearch results ---
+kmeans_centers = pickle.load(open('models/kmeans_centers.pkl', 'rb'))
+grid_search_results = pickle.load(open('models/grid_search_results.pkl', 'rb'))
 
-# --- [NEW] Load the exact X and y data saved by the modeling script ---
-# This fixes the "ValueError: Found array with 0 sample(s)"
+
+# --- Load the exact X and y data ---
 X = pd.read_csv('models/final_X_data.csv', index_col=0, parse_dates=True)
-# Load y, set index, and squeeze into a Series (since we saved with header=False)
 y = pd.read_csv('models/final_y_data.csv', index_col=0, parse_dates=True, header=None).squeeze("columns")
-y.name = "Regime" # Restore the name for clarity
+y.name = "Regime"
 
-# --- The rest of the script continues, transforming and analyzing the loaded data ---
+# --- [NEW] Print K-Means and Regime Counts ---
+print("\n====== K-MEANS CLUSTER CENTERS (Regime Definitions) ======")
+print(kmeans_centers)
+print("\n====== REGIME DATA POINT COUNTS (Full Dataset) ======")
+print(y.value_counts())
 
+# --- Re-create the full dataset transformation ---
 features_scaled = scaler.transform(X)
 yield_indices = [X.columns.get_loc(c) for c in yield_cols]
 pca_scores = pca.transform(features_scaled[:, yield_indices])
 full_features = np.concatenate([pca_scores, features_scaled[:, 4:]], axis=1)
 lda_features = lda.transform(full_features)
 
+# --- Split the transformed data back into Train/Test ---
 train_mask = X.index.isin(train_indices)
 test_mask = X.index.isin(test_indices)
 
@@ -41,11 +47,19 @@ X_test_lda = lda_features[test_mask]
 y_train = y[train_mask]
 y_test = y[test_mask]
 
+# --- Calculate Accuracy ---
 y_pred_test = classifier.predict(X_test_lda)
 test_accuracy = accuracy_score(y_test, y_pred_test)
 y_pred_full = classifier.predict(lda_features)
 full_accuracy = accuracy_score(y, y_pred_full)
 
+# --- [NEW] Print GridSearchCV Results ---
+print("\n====== GridSearchCV Results (from training) ======")
+print(f"Best CV Accuracy: {grid_search_results['best_score']:.4f}")
+print("Best Parameters Found:")
+print(grid_search_results['best_params'])
+
+# --- Print All Other Analysis Tables ---
 print("\n====== PCA LOADINGS TABLE ======")
 pca_df = pd.DataFrame(np.round(pca.components_, 3), columns=yield_cols, index=['PC1', 'PC2', 'PC3'])
 print(pca_df)

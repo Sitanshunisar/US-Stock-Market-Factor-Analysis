@@ -45,6 +45,9 @@ sorted_idxs = centers['Mean_Return'].argsort()
 regime_mapping = {int(sorted_idxs[0]): 'Bear', int(sorted_idxs[1]): 'Sideways', int(sorted_idxs[2]): 'Bull'}
 merged_df['Regime'] = pd.Series(clusters, index=cluster_features.index).map(regime_mapping)
 
+# [NEW] Rename centers index with labels for saving
+centers_to_save = centers.rename(index=regime_mapping)
+
 final_df = merged_df.dropna(subset=YIELD_COLS + ['log_return', 'volatility_60d', 'Regime'])
 X = final_df[features].dropna()
 y = final_df['Regime'].loc[X.index].dropna()
@@ -82,39 +85,51 @@ knn = KNeighborsClassifier()
 grid_search = GridSearchCV(knn, param_grid, cv=5, n_jobs=-1, verbose=2)
 grid_search.fit(X_train_lda, y_train)
 
-# --- [ADDED] PRINTING GRIDSEARCH RESULTS ---
-print("\n==============================")
-print("   GridSearchCV Results")
-print("==============================")
-print(f"Best Accuracy Score: {grid_search.best_score_:.4f}")
-print("Best Parameters Found:")
-print(grid_search.best_params_)
-print("==============================\n")
+# [NEW] Store grid search results in a dictionary for saving
+grid_search_results = {
+    'best_score': grid_search.best_score_,
+    'best_params': grid_search.best_params_
+}
 
 best_knn = grid_search.best_estimator_
 
-# --- Train on ALL DATA (deploy/inference model) ---
+# --- Train on ALL DATA (deployed model) ---
 scaler_prod = StandardScaler()
 X_scaled_prod = scaler_prod.fit_transform(X)
-X_pca_prod = pca.fit_transform(X_scaled_prod[:, yield_indices])
+
+# [FIX] You must create NEW production models trained on 100% of the data
+pca_prod = PCA(n_components=3)
+X_pca_prod = pca_prod.fit_transform(X_scaled_prod[:, yield_indices])
+
 X_full_prod = np.concatenate([X_pca_prod, X_scaled_prod[:, 4:]], axis=1)
-X_lda_prod = lda.fit_transform(X_full_prod, y)
+
+lda_prod = LDA(n_components=2)
+X_lda_prod = lda_prod.fit_transform(X_full_prod, y)
+# [END FIX]
+
 best_knn.fit(X_lda_prod, y)
 
 # --- Save models, splits, and regimes for analysis.py ---
 models_dir = 'models'
 if not os.path.exists(models_dir): os.makedirs(models_dir)
 with open(f'{models_dir}/scaler.pkl', 'wb') as f: pickle.dump(scaler_prod, f)
-with open(f'{models_dir}/pca_model.pkl', 'wb') as f: pickle.dump(pca, f)
-with open(f'{models_dir}/lda_model.pkl', 'wb') as f: pickle.dump(lda, f)
+
+# [FIX] Save the correct production models
+with open(f'{models_dir}/pca_model.pkl', 'wb') as f: pickle.dump(pca_prod, f)
+with open(f'{models_dir}/lda_model.pkl', 'wb') as f: pickle.dump(lda_prod, f)
+# [END FIX]
+
 with open(f'{models_dir}/final_classifier.pkl', 'wb') as f: pickle.dump(best_knn, f)
 with open(f'{models_dir}/train_indices.pkl', 'wb') as f: pickle.dump(train_indices, f)
 with open(f'{models_dir}/test_indices.pkl', 'wb') as f: pickle.dump(test_indices, f)
 final_df[['Regime']].to_csv(f'{models_dir}/assigned_regimes.csv')
 
-# --- [ADDED] SAVE FINAL X and y DATA ---
-# This ensures analysis.py uses the *exact* data the models were trained on
+# --- SAVE FINAL X and y DATA ---
 X.to_csv(f'{models_dir}/final_X_data.csv')
 y.to_csv(f'{models_dir}/final_y_data.csv', header=False) # Save y as a simple series
+
+# --- [NEW] Save the new analysis files ---
+with open(f'{models_dir}/kmeans_centers.pkl', 'wb') as f: pickle.dump(centers_to_save, f)
+with open(f'{models_dir}/grid_search_results.pkl', 'wb') as f: pickle.dump(grid_search_results, f)
 
 print("All models and data files saved successfully.")

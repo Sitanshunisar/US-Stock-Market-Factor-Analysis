@@ -40,7 +40,6 @@ def prepare_features():
 
     # Market features
     sp500_df['log_return'] = np.log(sp500_df['close'] / sp500_df['close'].shift(1))
-    # [FIX] Add replacement for inf/-inf values to match modeling_script.py
     sp500_df['log_return'] = sp500_df['log_return'].replace([np.inf, -np.inf], np.nan)
     sp500_df['volatility_60d'] = sp500_df['log_return'].rolling(window=60).std()
     market_features = sp500_df[['log_return', 'volatility_60d', 'close']]
@@ -63,7 +62,6 @@ def get_prediction_for_date(target_date_str):
         # This is a 1-row DataFrame with 6 features
         feature_values = features_for_date.drop(columns=['close'])
         
-        # --- [FIX] Corrected Prediction Pipeline ---
         # 1. Scale all 6 features
         features_scaled = scaler.transform(feature_values)
         
@@ -80,7 +78,6 @@ def get_prediction_for_date(target_date_str):
         
         # 5. Predict
         prediction = classifier.predict(lda_features)[0]
-        # --- [END FIX] ---
         
         return {
             'predicted_regime': prediction.upper(),
@@ -120,7 +117,6 @@ def analyze_range():
         # feature_values is a 1D row of 6 features (yields, log_ret, vol)
         feature_values = row.drop(['close']).values.reshape(1, -1)
         
-        # --- [FIX] Corrected Prediction Pipeline (same as above) ---
         # 1. Scale all 6 features
         features_scaled = scaler.transform(feature_values)
         
@@ -135,7 +131,6 @@ def analyze_range():
         
         # 5. Predict
         prediction = classifier.predict(lda_features)[0]
-        # --- [END FIX] ---
 
         results.append({'date': date.strftime('%Y-%m-%d'), 'price': row['close'], 'regime': prediction})
         
@@ -151,7 +146,6 @@ def simulate_scenario():
             float(data['yr30_change']), float(data['log_return']), float(data['volatility'])
         ]])
 
-        # --- [FIX] Corrected Prediction Pipeline (same as above) ---
         # 1. Scale all 6 features
         features_scaled = scaler.transform(feature_values)
         
@@ -166,7 +160,6 @@ def simulate_scenario():
         
         # 5. Predict
         prediction = classifier.predict(lda_features)[0]
-        # --- [END FIX] ---
 
         return jsonify({'predicted_regime': prediction.upper(), 'regime_class': prediction.lower()})
     except (ValueError, KeyError):
