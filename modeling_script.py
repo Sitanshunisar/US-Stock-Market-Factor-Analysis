@@ -92,7 +92,7 @@ X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
 
 # --- Train LDA model *only for analysis* ---
-lda_analysis_model = LDA()
+lda_analysis_model = LDA(solver='lsqr')
 lda_analysis_model.fit(X_train_scaled, y_train)
 
 # --- GridSearchCV for RandomForest optimization ---
@@ -119,7 +119,7 @@ scaler_prod = StandardScaler()
 X_scaled_prod = scaler_prod.fit_transform(X)
 best_rf.fit(X_scaled_prod, y)
 
-lda_analysis_model_prod = LDA()
+lda_analysis_model_prod = LDA(solver='lsqr')
 lda_analysis_model_prod.fit(X_scaled_prod, y)
 
 # --- Save models ---
